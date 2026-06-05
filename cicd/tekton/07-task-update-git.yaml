@@ -1,0 +1,173 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: realidadstore-update-git
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: gitops-update
+spec:
+  description: >-
+    Actualiza en Git las imágenes de backend y frontend construidas
+    por Tekton para que Argo CD sincronice el nuevo estado.
+
+  params:
+    - name: git-revision
+      type: string
+      default: main
+
+    - name: backend-image
+      type: string
+
+    - name: frontend-image
+      type: string
+
+  workspaces:
+    - name: source
+      description: Repositorio Git clonado previamente.
+
+  results:
+    - name: deployment-commit
+      description: Commit que actualizó los manifiestos GitOps.
+
+  steps:
+    - name: update-manifests
+      image: docker.io/mikefarah/yq:4.44.3
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: BACKEND_IMAGE
+          value: $(params.backend-image)
+
+        - name: FRONTEND_IMAGE
+          value: $(params.frontend-image)
+
+      script: |
+        #!/bin/sh
+        set -eu
+
+        BACKEND_FILE="k8s/app/08-backend-deployment.yaml"
+        FRONTEND_FILE="k8s/app/10-frontend-deployment.yaml"
+
+        echo "============================================"
+        echo " ACTUALIZANDO MANIFIESTOS GITOPS"
+        echo "============================================"
+        echo "Backend:  ${BACKEND_IMAGE}"
+        echo "Frontend: ${FRONTEND_IMAGE}"
+        echo
+
+        test -f "${BACKEND_FILE}" || {
+          echo "ERROR: No existe ${BACKEND_FILE}"
+          exit 1
+        }
+
+        test -f "${FRONTEND_FILE}" || {
+          echo "ERROR: No existe ${FRONTEND_FILE}"
+          exit 1
+        }
+
+        yq -i \
+          '(.spec.template.spec.containers[] |
+          select(.name == "backend").image) = strenv(BACKEND_IMAGE)' \
+          "${BACKEND_FILE}"
+
+        yq -i \
+          '(.spec.template.spec.containers[] |
+          select(.name == "frontend").image) = strenv(FRONTEND_IMAGE)' \
+          "${FRONTEND_FILE}"
+
+        SAVED_BACKEND="$(
+          yq '.spec.template.spec.containers[] |
+          select(.name == "backend").image' \
+          "${BACKEND_FILE}"
+        )"
+
+        SAVED_FRONTEND="$(
+          yq '.spec.template.spec.containers[] |
+          select(.name == "frontend").image' \
+          "${FRONTEND_FILE}"
+        )"
+
+        test "${SAVED_BACKEND}" = "${BACKEND_IMAGE}" || {
+          echo "ERROR: No se actualizó correctamente el backend"
+          exit 1
+        }
+
+        test "${SAVED_FRONTEND}" = "${FRONTEND_IMAGE}" || {
+          echo "ERROR: No se actualizó correctamente el frontend"
+          exit 1
+        }
+
+        echo "Manifiestos actualizados:"
+        echo "- ${SAVED_BACKEND}"
+        echo "- ${SAVED_FRONTEND}"
+
+    - name: commit-and-push
+      image: docker.io/alpine/git:2.47.2
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: GITHUB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: github-write-credentials
+              key: username
+
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-write-credentials
+              key: token
+
+      script: |
+        #!/bin/sh
+        set -eu
+        set +x
+
+        echo "============================================"
+        echo " CREANDO COMMIT GITOPS"
+        echo "============================================"
+
+        git config user.name "RealidadStore Tekton"
+        git config user.email "tekton@realidadstore.local"
+
+        git add \
+          k8s/app/08-backend-deployment.yaml \
+          k8s/app/10-frontend-deployment.yaml
+
+        if git diff --cached --quiet; then
+          echo "Los manifiestos ya contienen estas imágenes."
+          printf "%s" "$(git rev-parse HEAD)" \
+            > "$(results.deployment-commit.path)"
+          exit 0
+        fi
+
+        git commit \
+          -m "deploy: update RealidadStore images [skip ci]"
+
+        cat > /tmp/git-askpass.sh <<'SCRIPT'
+        #!/bin/sh
+        case "$1" in
+          *Username*)
+            printf '%s\n' "${GITHUB_USERNAME}"
+            ;;
+          *Password*)
+            printf '%s\n' "${GITHUB_TOKEN}"
+            ;;
+        esac
+        SCRIPT
+
+        chmod 700 /tmp/git-askpass.sh
+
+        export GIT_ASKPASS=/tmp/git-askpass.sh
+        export GIT_TERMINAL_PROMPT=0
+
+        git push origin "HEAD:$(params.git-revision)"
+
+        DEPLOYMENT_COMMIT="$(git rev-parse HEAD)"
+        printf "%s" "${DEPLOYMENT_COMMIT}" \
+          > "$(results.deployment-commit.path)"
+
+        rm -f /tmp/git-askpass.sh
+
+        echo
+        echo "Commit GitOps publicado correctamente."
+        echo "Commit: ${DEPLOYMENT_COMMIT}"

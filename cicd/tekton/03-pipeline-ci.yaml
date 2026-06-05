@@ -8,18 +8,18 @@ metadata:
     app.kubernetes.io/component: continuous-integration
 spec:
   description: >-
-    Clona, valida, construye y publica las imágenes del backend
-    y frontend de RealidadStore.
+    Pipeline CI/CD de RealidadStore: clona, valida, construye,
+    publica imágenes y actualiza los manifiestos GitOps.
 
   params:
     - name: git-url
       type: string
-      description: URL del repositorio Git.
+      description: URL HTTPS del repositorio Git.
 
     - name: git-revision
       type: string
+      description: Rama, tag o commit que será procesado.
       default: main
-      description: Rama, tag o commit.
 
     - name: image-namespace
       type: string
@@ -27,10 +27,10 @@ spec:
 
   workspaces:
     - name: shared-workspace
-      description: Código fuente compartido por las Tasks.
+      description: Código fuente compartido entre las Tasks.
 
     - name: dockerconfig
-      description: Configuración de autenticación para Docker Hub.
+      description: Credenciales de Docker Hub.
 
   tasks:
     - name: clone-source
@@ -39,8 +39,10 @@ spec:
       params:
         - name: url
           value: $(params.git-url)
+
         - name: revision
           value: $(params.git-revision)
+
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -48,68 +50,112 @@ spec:
     - name: build-backend
       runAfter:
         - clone-source
+
       taskRef:
         name: buildah
+
       params:
         - name: IMAGE
           value: docker.io/$(params.image-namespace)/realidadstore-backend:$(tasks.clone-source.results.commit)
+
         - name: DOCKERFILE
           value: ./app/backend/Dockerfile
+
         - name: CONTEXT
           value: ./app/backend
+
         - name: STORAGE_DRIVER
           value: vfs
+
         - name: FORMAT
           value: docker
+
         - name: TLSVERIFY
           value: "true"
+
       workspaces:
         - name: source
           workspace: shared-workspace
+
         - name: dockerconfig
           workspace: dockerconfig
 
     - name: build-frontend
       runAfter:
         - clone-source
+
       taskRef:
         name: buildah
+
       params:
         - name: IMAGE
           value: docker.io/$(params.image-namespace)/realidadstore-frontend:$(tasks.clone-source.results.commit)
+
         - name: DOCKERFILE
           value: ./app/frontend/Dockerfile
+
         - name: CONTEXT
           value: ./app/frontend
+
         - name: STORAGE_DRIVER
           value: vfs
+
         - name: FORMAT
           value: docker
+
         - name: TLSVERIFY
           value: "true"
+
       workspaces:
         - name: source
           workspace: shared-workspace
+
         - name: dockerconfig
           workspace: dockerconfig
 
+    - name: update-git-manifests
+      runAfter:
+        - build-backend
+        - build-frontend
+
+      taskRef:
+        name: realidadstore-update-git
+
+      params:
+        - name: git-revision
+          value: $(params.git-revision)
+
+        - name: backend-image
+          value: $(tasks.build-backend.results.IMAGE_URL)
+
+        - name: frontend-image
+          value: $(tasks.build-frontend.results.IMAGE_URL)
+
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
   results:
-    - name: git-commit
-      description: Commit procesado por el Pipeline.
+    - name: source-commit
+      description: Commit de código procesado.
       value: $(tasks.clone-source.results.commit)
 
     - name: backend-image
-      description: Imagen publicada del backend.
+      description: Imagen del backend publicada en Docker Hub.
       value: $(tasks.build-backend.results.IMAGE_URL)
 
     - name: backend-digest
-      description: Digest publicado del backend.
+      description: Digest de la imagen del backend.
       value: $(tasks.build-backend.results.IMAGE_DIGEST)
 
     - name: frontend-image
-      description: Imagen publicada del frontend.
+      description: Imagen del frontend publicada en Docker Hub.
       value: $(tasks.build-frontend.results.IMAGE_URL)
 
     - name: frontend-digest
-      description: Digest publicado del frontend.
+      description: Digest de la imagen del frontend.
       value: $(tasks.build-frontend.results.IMAGE_DIGEST)
+
+    - name: deployment-commit
+      description: Commit GitOps creado por Tekton.
+      value: $(tasks.update-git-manifests.results.deployment-commit)
