@@ -1,0 +1,115 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: realidadstore-ci
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: continuous-integration
+spec:
+  description: >-
+    Clona, valida, construye y publica las imágenes del backend
+    y frontend de RealidadStore.
+
+  params:
+    - name: git-url
+      type: string
+      description: URL del repositorio Git.
+
+    - name: git-revision
+      type: string
+      default: main
+      description: Rama, tag o commit.
+
+    - name: image-namespace
+      type: string
+      description: Usuario o namespace de Docker Hub.
+
+  workspaces:
+    - name: shared-workspace
+      description: Código fuente compartido por las Tasks.
+
+    - name: dockerconfig
+      description: Configuración de autenticación para Docker Hub.
+
+  tasks:
+    - name: clone-source
+      taskRef:
+        name: realidadstore-git-clone
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+
+    - name: build-backend
+      runAfter:
+        - clone-source
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: docker.io/$(params.image-namespace)/realidadstore-backend:$(tasks.clone-source.results.commit)
+        - name: DOCKERFILE
+          value: ./app/backend/Dockerfile
+        - name: CONTEXT
+          value: ./app/backend
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: FORMAT
+          value: docker
+        - name: TLSVERIFY
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: dockerconfig
+          workspace: dockerconfig
+
+    - name: build-frontend
+      runAfter:
+        - clone-source
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: docker.io/$(params.image-namespace)/realidadstore-frontend:$(tasks.clone-source.results.commit)
+        - name: DOCKERFILE
+          value: ./app/frontend/Dockerfile
+        - name: CONTEXT
+          value: ./app/frontend
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: FORMAT
+          value: docker
+        - name: TLSVERIFY
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: dockerconfig
+          workspace: dockerconfig
+
+  results:
+    - name: git-commit
+      description: Commit procesado por el Pipeline.
+      value: $(tasks.clone-source.results.commit)
+
+    - name: backend-image
+      description: Imagen publicada del backend.
+      value: $(tasks.build-backend.results.IMAGE_URL)
+
+    - name: backend-digest
+      description: Digest publicado del backend.
+      value: $(tasks.build-backend.results.IMAGE_DIGEST)
+
+    - name: frontend-image
+      description: Imagen publicada del frontend.
+      value: $(tasks.build-frontend.results.IMAGE_URL)
+
+    - name: frontend-digest
+      description: Digest publicado del frontend.
+      value: $(tasks.build-frontend.results.IMAGE_DIGEST)

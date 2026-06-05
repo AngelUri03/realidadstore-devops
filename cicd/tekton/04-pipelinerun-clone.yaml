@@ -1,0 +1,26 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: realidadstore-ci-
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: pipeline-run
+spec:
+  pipelineRef:
+    name: realidadstore-ci
+
+  taskRunTemplate:
+    serviceAccountName: realidadstore-pipeline
+
+  params:
+    - name: git-url
+      value: "https://github.com/AngelUri03/realidadstore-devops.git"
+
+    - name: git-revision
+      value: "main"
+
+  workspaces:
+    - name: shared-workspace
+      persistentVolumeClaim:
+        claimName: realidadstore-cicd-workspace

@@ -1,0 +1,118 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: realidadstore-git-clone
+  namespace: cicd
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: source-clone
+spec:
+  description: >-
+    Clona el repositorio de RealidadStore dentro de un Workspace
+    compartido y valida su estructura principal.
+
+  params:
+    - name: url
+      type: string
+      description: URL HTTPS del repositorio Git.
+
+    - name: revision
+      type: string
+      description: Rama, tag o commit que será clonado.
+      default: main
+
+  workspaces:
+    - name: source
+      description: Workspace donde se almacenará el código fuente.
+
+  results:
+    - name: commit
+      description: Hash del commit clonado.
+
+  steps:
+    - name: clone
+      image: docker.io/alpine/git:2.47.2
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: HOME
+          value: /tekton/home
+      script: |
+        #!/bin/sh
+        set -eu
+
+        echo "============================================"
+        echo " CLONANDO REALIDADSTORE"
+        echo "============================================"
+        echo "Repositorio: $(params.url)"
+        echo "Revisión:    $(params.revision)"
+        echo
+
+        find "$(workspaces.source.path)" \
+          -mindepth 1 \
+          -maxdepth 1 \
+          -exec rm -rf {} +
+
+        git clone \
+          --depth 1 \
+          --branch "$(params.revision)" \
+          "$(params.url)" \
+          "$(workspaces.source.path)"
+
+        cd "$(workspaces.source.path)"
+
+        COMMIT="$(git rev-parse HEAD)"
+        printf "%s" "${COMMIT}" > "$(results.commit.path)"
+
+        echo
+        echo "Repositorio clonado correctamente."
+        echo "Commit procesado: ${COMMIT}"
+
+    - name: validate
+      image: docker.io/alpine:3.20
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -eu
+
+        echo "============================================"
+        echo " VALIDANDO ESTRUCTURA DEL PROYECTO"
+        echo "============================================"
+
+        test -f app/backend/Dockerfile || {
+          echo "ERROR: No existe app/backend/Dockerfile"
+          exit 1
+        }
+
+        test -f app/backend/main.py || {
+          echo "ERROR: No existe app/backend/main.py"
+          exit 1
+        }
+
+        test -f app/frontend/Dockerfile || {
+          echo "ERROR: No existe app/frontend/Dockerfile"
+          exit 1
+        }
+
+        test -f app/frontend/package.json || {
+          echo "ERROR: No existe app/frontend/package.json"
+          exit 1
+        }
+
+        test -d k8s/app || {
+          echo "ERROR: No existe el directorio k8s/app"
+          exit 1
+        }
+
+        echo
+        echo "Archivos principales encontrados:"
+        find app k8s/app \
+          -maxdepth 3 \
+          -type f \
+          | sort \
+          | head -100
+
+        echo
+        echo "VALIDACIÓN COMPLETADA"
+        echo "- Backend encontrado"
+        echo "- Frontend encontrado"
+        echo "- Manifiestos de Argo CD encontrados"
