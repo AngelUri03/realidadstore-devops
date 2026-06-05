@@ -446,7 +446,7 @@ function TopBar({ totalItems, onCart }) {
             <Gamepad2 />
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight">RealidadStore2</h1>
+            <h1 className="text-xl font-black tracking-tight">RealidadStore - Demo Funcional</h1>
             <p className="text-xs font-semibold text-cyan-300">VR · AR · Gaming Ecommerce</p>
           </div>
         </div>
@@ -480,11 +480,11 @@ function Hero({ summary, filters, setFilters, applyFilters }) {
       <div className="glass overflow-hidden rounded-[2.2rem] p-8 shadow-2xl lg:p-12">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm font-black text-cyan-200">
           <Sparkles size={17} />
-          Gaming Week · Envío gratis desde $5,000
+          Gaming Week · Envío gratis desde $4,999
         </div>
 
         <h2 className="mt-8 max-w-3xl text-5xl font-black leading-[0.95] tracking-[-0.06em] md:text-7xl">
-          Equipa tu mundo inmersivo.
+          Trae lo digital a tu vida.
         </h2>
 
         <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
