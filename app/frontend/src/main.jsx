@@ -446,7 +446,7 @@ function TopBar({ totalItems, onCart }) {
             <Gamepad2 />
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight">RealidadStore</h1>
+            <h1 className="text-xl font-black tracking-tight">RealidadStore2</h1>
             <p className="text-xs font-semibold text-cyan-300">VR · AR · Gaming Ecommerce</p>
           </div>
         </div>
