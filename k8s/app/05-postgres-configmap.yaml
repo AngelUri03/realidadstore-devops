@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: realidadstore
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: database
+data:
+  POSTGRES_DB: realidadstoredb
+  PGDATA: /var/lib/postgresql/data/pgdata

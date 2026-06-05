@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: realidadstore-backend
+  namespace: realidadstore
+  labels:
+    app: backend
+    release: monitoring
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  namespaceSelector:
+    matchNames:
+      - realidadstore
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

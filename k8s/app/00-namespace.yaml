@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: realidadstore
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/part-of: tienda-vr-ar-gaming

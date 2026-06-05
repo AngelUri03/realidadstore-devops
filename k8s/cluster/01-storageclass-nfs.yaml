@@ -1,0 +1,15 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-csi
+  labels:
+    app.kubernetes.io/name: realidadstore
+    app.kubernetes.io/component: storage
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 192.168.222.132
+  share: /srv/nfs/k8s-storage
+  subDir: ${pvc.metadata.namespace}-${pvc.metadata.name}-${pv.metadata.name}
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true

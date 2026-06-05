@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nfs-test-pod
+  namespace: realidadstore
+  labels:
+    app: nfs-test
+spec:
+  containers:
+    - name: test
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Prueba NFS desde Kubernetes - RealidadStore" > /data/nfs-test.txt
+          echo "Nodo donde corre el pod: $(hostname)" >> /data/nfs-test.txt
+          date >> /data/nfs-test.txt
+          sleep 3600
+      volumeMounts:
+        - name: nfs-storage
+          mountPath: /data
+  volumes:
+    - name: nfs-storage
+      persistentVolumeClaim:
+        claimName: nfs-test-pvc
