@@ -60,6 +60,10 @@ spec:
 
         cd "$(workspaces.source.path)"
 
+        echo
+        echo "Normalizando permisos del Workspace compartido..."
+        find . -mindepth 1 -exec chmod a+rwX {} +
+
         COMMIT="$(git rev-parse HEAD)"
         printf "%s" "${COMMIT}" > "$(results.commit.path)"
 
