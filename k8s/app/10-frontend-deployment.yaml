@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: docker.io/angeluri/realidadstore-frontend:v1
+          image: docker.io/angeluri/realidadstore-frontend:2c04371043a20a13c2c3698c54e9ef8444fdd9e6
           imagePullPolicy: Always
           ports:
             - name: http
